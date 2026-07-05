@@ -3,6 +3,7 @@
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -13,6 +14,7 @@ from fuel_optimizer.services.routing import RouteResult
 
 class RouteAPITests(TestCase):
     def setUp(self):
+        cache.clear()
         self.client = APIClient()
         self.route_geometry = {
             "type": "LineString",
@@ -37,8 +39,8 @@ class RouteAPITests(TestCase):
             longitude=-86.0000,
         )
 
-    @patch("fuel_optimizer.services.route_service.get_route")
-    @patch("fuel_optimizer.services.route_service.geocode_address")
+    @patch("fuel_optimizer.services.ors_cache.get_route")
+    @patch("fuel_optimizer.services.ors_cache.geocode_address")
     def test_post_route_with_addresses(self, mock_geocode, mock_get_route):
         mock_geocode.side_effect = [
             GeocodeResult(41.87897, -87.66063, "Chicago, IL, USA"),
@@ -65,7 +67,7 @@ class RouteAPITests(TestCase):
         self.assertEqual(response.data["summary"]["mpg"], 10)
         self.assertEqual(response.data["summary"]["max_range_miles"], 500)
 
-    @patch("fuel_optimizer.services.route_service.get_route")
+    @patch("fuel_optimizer.services.ors_cache.get_route")
     def test_post_route_with_coordinates_skips_geocoding(self, mock_get_route):
         mock_get_route.return_value = RouteResult(
             geometry=self.route_geometry,
@@ -90,7 +92,7 @@ class RouteAPITests(TestCase):
         response = self.client.post("/api/v1/route/", {"start": "Chicago, IL"}, format="json")
         self.assertEqual(response.status_code, 400)
 
-    @patch("fuel_optimizer.services.route_service.geocode_address")
+    @patch("fuel_optimizer.services.ors_cache.geocode_address")
     def test_geocode_miss_returns_404(self, mock_geocode):
         from fuel_optimizer.services.geocoding import GeocodingError
 
@@ -104,8 +106,8 @@ class RouteAPITests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    @patch("fuel_optimizer.services.route_service.get_route")
-    @patch("fuel_optimizer.services.route_service.geocode_address")
+    @patch("fuel_optimizer.services.ors_cache.get_route")
+    @patch("fuel_optimizer.services.ors_cache.geocode_address")
     def test_routing_failure_returns_502(self, mock_geocode, mock_get_route):
         from fuel_optimizer.services.routing import RoutingError
 
@@ -123,7 +125,7 @@ class RouteAPITests(TestCase):
 
         self.assertEqual(response.status_code, 502)
 
-    @patch("fuel_optimizer.services.route_service.get_route")
+    @patch("fuel_optimizer.services.ors_cache.get_route")
     def test_get_route_with_query_params(self, mock_get_route):
         mock_get_route.return_value = RouteResult(
             geometry=self.route_geometry,

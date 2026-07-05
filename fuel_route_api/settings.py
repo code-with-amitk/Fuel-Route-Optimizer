@@ -96,3 +96,12 @@ REST_FRAMEWORK = {
 }
 
 ORS_API_KEY = env("ORS_API_KEY", default="")
+
+# In-memory cache for dev; swap backend for Redis in production (Phase 9 optional).
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "fuel-route-optimizer",
+    }
+}
+ORS_CACHE_TTL_SECONDS = env.int("ORS_CACHE_TTL_SECONDS", default=60 * 60 * 24)

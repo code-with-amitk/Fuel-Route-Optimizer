@@ -12,8 +12,9 @@ from fuel_optimizer.services.fuel_optimizer import (
     FuelOptimizerError,
     optimize_fuel_stops,
 )
-from fuel_optimizer.services.geocoding import GeocodeResult, GeocodingError, geocode_address
-from fuel_optimizer.services.routing import RouteCoordinate, RouteResult, RoutingError, get_route
+from fuel_optimizer.services.geocoding import GeocodingError
+from fuel_optimizer.services.ors_cache import cached_geocode_address, cached_get_route
+from fuel_optimizer.services.routing import RouteCoordinate, RoutingError
 
 
 class RouteServiceError(Exception):
@@ -32,45 +33,9 @@ class ResolvedLocation:
 
 
 def resolve_location(value: str | dict[str, Any], *, field_name: str) -> ResolvedLocation:
-    """Resolve an address string or {lat, lng} dict to coordinates."""
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            raise RouteServiceError(f"{field_name} address cannot be empty", 400)
-        try:
-            result = geocode_address(text)
-        except GeocodingError as exc:
-            raise _map_geocoding_error(exc) from exc
-        return ResolvedLocation(result.latitude, result.longitude, result.label)
-
-    if isinstance(value, dict):
-        lat = value.get("lat")
-        lng = value.get("lng")
-        if lat is None or lng is None:
-            raise RouteServiceError(
-                f"{field_name} must include both lat and lng when using coordinates",
-                400,
-            )
-        try:
-            lat_f = float(lat)
-            lng_f = float(lng)
-        except (TypeError, ValueError) as exc:
-            raise RouteServiceError(f"{field_name} lat/lng must be numbers", 400) from exc
-
-        label = value.get("label") or f"{lat_f}, {lng_f}"
-        coordinate = RouteCoordinate(lat_f, lng_f)
-        try:
-            from fuel_optimizer.services.routing import validate_route_coordinates
-
-            validate_route_coordinates(coordinate, coordinate)
-        except RoutingError as exc:
-            raise RouteServiceError(str(exc), 400) from exc
-        return ResolvedLocation(lat_f, lng_f, label)
-
-    raise RouteServiceError(
-        f"{field_name} must be an address string or an object with lat and lng",
-        400,
-    )
+    """Public helper; discards ORS call accounting."""
+    location, _ = _resolve_location(value, field_name=field_name)
+    return location
 
 
 def plan_fuel_route(
@@ -80,16 +45,22 @@ def plan_fuel_route(
     """
     Full pipeline: resolve locations → ORS route → fuel stops → costs → JSON payload.
     """
-    start_location = resolve_location(start, field_name="start")
-    finish_location = resolve_location(finish, field_name="finish")
+    ors_api_calls = 0
+
+    start_location, start_geocode_calls = _resolve_location(start, field_name="start")
+    finish_location, finish_geocode_calls = _resolve_location(finish, field_name="finish")
+    ors_api_calls += start_geocode_calls + finish_geocode_calls
 
     try:
-        route = get_route(
+        route, route_cache_hit = cached_get_route(
             RouteCoordinate(start_location.latitude, start_location.longitude),
             RouteCoordinate(finish_location.latitude, finish_location.longitude),
         )
     except RoutingError as exc:
         raise _map_routing_error(exc) from exc
+
+    if not route_cache_hit:
+        ors_api_calls += 1
 
     try:
         fuel_stop_plans = optimize_fuel_stops(
@@ -150,8 +121,59 @@ def plan_fuel_route(
             "fuel_stops_count": len(fuel_stops),
             "mpg": MPG,
             "max_range_miles": MAX_RANGE_MILES,
+            "ors_api_calls": ors_api_calls,
         },
     }
+
+
+def _resolve_location(
+    value: str | dict[str, Any],
+    *,
+    field_name: str,
+) -> tuple[ResolvedLocation, int]:
+    """Resolve a location; return count of live ORS geocode calls (0 or 1)."""
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            raise RouteServiceError(f"{field_name} address cannot be empty", 400)
+        try:
+            result, cache_hit = cached_geocode_address(text)
+        except GeocodingError as exc:
+            raise _map_geocoding_error(exc) from exc
+        geocode_calls = 0 if cache_hit else 1
+        return (
+            ResolvedLocation(result.latitude, result.longitude, result.label),
+            geocode_calls,
+        )
+
+    if isinstance(value, dict):
+        lat = value.get("lat")
+        lng = value.get("lng")
+        if lat is None or lng is None:
+            raise RouteServiceError(
+                f"{field_name} must include both lat and lng when using coordinates",
+                400,
+            )
+        try:
+            lat_f = float(lat)
+            lng_f = float(lng)
+        except (TypeError, ValueError) as exc:
+            raise RouteServiceError(f"{field_name} lat/lng must be numbers", 400) from exc
+
+        label = value.get("label") or f"{lat_f}, {lng_f}"
+        coordinate = RouteCoordinate(lat_f, lng_f)
+        try:
+            from fuel_optimizer.services.routing import validate_route_coordinates
+
+            validate_route_coordinates(coordinate, coordinate)
+        except RoutingError as exc:
+            raise RouteServiceError(str(exc), 400) from exc
+        return ResolvedLocation(lat_f, lng_f, label), 0
+
+    raise RouteServiceError(
+        f"{field_name} must be an address string or an object with lat and lng",
+        400,
+    )
 
 
 def _map_geocoding_error(exc: GeocodingError) -> RouteServiceError:

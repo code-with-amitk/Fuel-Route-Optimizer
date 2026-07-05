@@ -72,6 +72,16 @@ def find_stations_in_corridor(
         latitude__lte=max_lat,
         longitude__gte=min_lon,
         longitude__lte=max_lon,
+    ).only(
+        "id",
+        "opis_id",
+        "name",
+        "address",
+        "city",
+        "state",
+        "retail_price",
+        "latitude",
+        "longitude",
     )
 
     for station in queryset:
