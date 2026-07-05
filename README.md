@@ -14,3 +14,4 @@ OPIS Truckstop ID,Truckstop Name,Address,City,State,Rack ID,Retail Price
 - [1. Getting Started](./Documentation/1.%20Getting_Started.md)
 - [2. Fuel Station Table](./Documentation/2.%20FuelStation_Table.md)
 - [3. Distance Between Points](./Documentation/3.%20Distance_Between_Points.md)
+- [4. Greedy fuel stop optimizer and cost calculator](./Documentation/4.%20Greedy%20fuel%20stop%20optimizer%20and%20cost%20calculator.md)
