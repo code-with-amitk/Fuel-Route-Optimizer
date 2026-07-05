@@ -48,16 +48,21 @@ def geocode_address(
     if not key:
         raise GeocodingError("ORS_API_KEY is not configured")
 
-    response = requests.get(
-        ORS_GEOCODE_URL,
-        headers={"Authorization": key},
-        params={
-            "text": text,
-            "boundary.country": "USA",
-            "size": 1,
-        },
-        timeout=timeout,
-    )
+    try:
+        response = requests.get(
+            ORS_GEOCODE_URL,
+            headers={"Authorization": key},
+            params={
+                "text": text,
+                "boundary.country": "USA",
+                "size": 1,
+            },
+            timeout=timeout,
+        )
+    except requests.Timeout as exc:
+        raise GeocodingError("OpenRouteService geocoding request timed out") from exc
+    except requests.RequestException as exc:
+        raise GeocodingError(f"OpenRouteService geocoding request failed: {exc}") from exc
 
     if response.status_code == 429:
         raise GeocodingError("OpenRouteService rate limit exceeded")

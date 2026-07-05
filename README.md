@@ -11,4 +11,6 @@ OPIS Truckstop ID,Truckstop Name,Address,City,State,Rack ID,Retail Price
 ```
 
 ## Documentation
-- [Getting Started](./Documentation/Getting_Started.md)
+- [1. Getting Started](./Documentation/1.%20Getting_Started.md)
+- [2. Fuel Station Table](./Documentation/2.%20FuelStation_Table.md)
+- [3. Distance Between Points](./Documentation/3.%20Distance_Between_Points.md)
