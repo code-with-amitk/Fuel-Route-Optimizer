@@ -16,3 +16,6 @@ OPIS Truckstop ID,Truckstop Name,Address,City,State,Rack ID,Retail Price
 - [3. Distance Between Points](./Documentation/3.%20Distance_Between_Points.md)
 - [4. Greedy fuel stop optimizer and cost calculator](./Documentation/4.%20Greedy%20fuel%20stop%20optimizer%20and%20cost%20calculator.md)
 - [5. REST Endpoints for POST, GET to server](./Documentation/5.%20REST%20Endpoints%20defined.md)
+- [6. Caching Gcocode results](./Documentation/6.%20Caching%20Geocode%20results.md)
+
+[curl commands to test server](./curl_commands.md)
